@@ -1,0 +1,548 @@
+import 'package:flutter/material.dart';
+
+import '../../core/constants/spacing.dart';
+import '../../shared/widgets/glass_card.dart';
+import '../../shared/widgets/sparkline_card.dart';
+import 'dashboard_controller.dart';
+
+class DashboardScreen extends StatefulWidget {
+  final DashboardController controller;
+  final VoidCallback onOpenSessions;
+
+  const DashboardScreen({
+    super.key,
+    required this.controller,
+    required this.onOpenSessions,
+  });
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  late final TextEditingController urlController;
+
+  DashboardController get controller => widget.controller;
+
+  @override
+  void initState() {
+    super.initState();
+    urlController = TextEditingController(text: controller.baseUrl);
+  }
+
+  @override
+  void dispose() {
+    urlController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _connect() async {
+    final input = urlController.text.trim();
+    if (input.isEmpty) {
+      return;
+    }
+
+    controller.connect(input);
+    setState(() {
+      urlController.text = controller.baseUrl;
+    });
+  }
+
+  Future<void> _refresh() async {
+    await controller.refresh();
+  }
+
+  Future<void> _quickReconnect() async {
+    if (controller.baseUrl.isEmpty) {
+      return;
+    }
+
+    controller.connect(controller.baseUrl);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (_, __) {
+        final scheme = Theme.of(context).colorScheme;
+        final isLoading =
+            controller.isLoading && controller.temperature == '--';
+
+        return SafeArea(
+          child: RefreshIndicator(
+            color: scheme.primary,
+            onRefresh: _refresh,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 122),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _HeaderCard(
+                    controller: controller,
+                    onOpenSessions: widget.onOpenSessions,
+                    onRefresh: _refresh,
+                  ),
+                  const SizedBox(height: Spacing.lg),
+                  GlassCard(
+                    enableBlur: false,
+                    gradientColors: [
+                      scheme.primary.withOpacity(0.16),
+                      scheme.tertiary.withOpacity(0.12),
+                    ],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Device connection',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: urlController,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _connect(),
+                          decoration: const InputDecoration(
+                            hintText: 'ESP32 IP or backend URL',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: _connect,
+                                child: const Text('Connect'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: controller.isLoading
+                                    ? null
+                                    : _refresh,
+                                child: const Text('Refresh'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (controller.baseUrl.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: _quickReconnect,
+                              icon: const Icon(Icons.link_rounded),
+                              label: const Text('Reconnect saved device'),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: Spacing.lg),
+                  Text(
+                    'Live trends',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 190,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        SizedBox(
+                          width: 220,
+                          child: SparklineCard(
+                            title: 'Temperature',
+                            value: controller.temperature,
+                            subtitle: 'Recent readings',
+                            color: scheme.primary,
+                            data: controller.temperatureHistory,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 220,
+                          child: SparklineCard(
+                            title: 'Humidity',
+                            value: controller.humidity,
+                            subtitle: 'Recent readings',
+                            color: scheme.tertiary,
+                            data: controller.humidityHistory,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 220,
+                          child: SparklineCard(
+                            title: 'Light',
+                            value: controller.light,
+                            subtitle: 'Recent readings',
+                            color: scheme.secondary,
+                            data: controller.lightHistory,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: Spacing.lg),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final cardWidth = (constraints.maxWidth - 14) / 2;
+                      final ratio = cardWidth / 178;
+
+                      return GridView.count(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 14,
+                        mainAxisSpacing: 14,
+                        childAspectRatio: ratio.clamp(0.72, 1.05),
+                        children: [
+                          _MetricCard(
+                            title: 'Temperature',
+                            value: controller.temperature,
+                            icon: Icons.thermostat_rounded,
+                            accent: scheme.primary,
+                            isLoading: isLoading,
+                          ),
+                          _MetricCard(
+                            title: 'Humidity',
+                            value: controller.humidity,
+                            icon: Icons.water_drop_rounded,
+                            accent: scheme.tertiary,
+                            isLoading: isLoading,
+                          ),
+                          _MetricCard(
+                            title: 'Light',
+                            value: controller.light,
+                            icon: Icons.wb_sunny_rounded,
+                            accent: scheme.secondary,
+                            isLoading: isLoading,
+                          ),
+                          _MetricCard(
+                            title: 'Timestamp',
+                            value: controller.time,
+                            icon: Icons.schedule_rounded,
+                            accent: scheme.onSurface,
+                            isLoading: isLoading,
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                  const SizedBox(height: Spacing.lg),
+                  GlassCard(
+                    child: Row(
+                      children: [
+                        Icon(
+                          controller.isConnected
+                              ? Icons.wifi_rounded
+                              : Icons.wifi_off_rounded,
+                          color: controller.isConnected
+                              ? Colors.greenAccent
+                              : scheme.onSurface.withOpacity(0.7),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                controller.statusMessage ?? 'Ready',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                controller.isStale
+                                    ? 'Cached snapshot shown while reconnecting.'
+                                    : controller.lastUpdated == null
+                                    ? 'No reading yet. Connect to start polling.'
+                                    : 'Last update: ${controller.lastUpdated}',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: scheme.onSurface.withOpacity(0.68),
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _HeaderCard extends StatelessWidget {
+  final DashboardController controller;
+  final VoidCallback onOpenSessions;
+  final Future<void> Function() onRefresh;
+
+  const _HeaderCard({
+    required this.controller,
+    required this.onOpenSessions,
+    required this.onRefresh,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final statusColor = controller.isConnected
+        ? Colors.greenAccent
+        : controller.isStale
+        ? Colors.orangeAccent
+        : scheme.onSurface.withOpacity(0.75);
+
+    return GlassCard(
+      gradientColors: [
+        scheme.primary.withOpacity(0.22),
+        scheme.tertiary.withOpacity(0.12),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Focus Zone',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'A calm control surface for live environmental readings and focus sessions.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: scheme.onSurface.withOpacity(0.72),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              _StatusChip(
+                color: statusColor,
+                label: controller.isConnected
+                    ? 'LIVE'
+                    : controller.isStale
+                    ? 'STALE'
+                    : 'IDLE',
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _MiniStat(
+                  label: 'Polling',
+                  value: controller.isLoading ? 'Syncing' : '20s',
+                  icon: Icons.refresh_rounded,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _MiniStat(
+                  label: 'Session',
+                  value: controller.isStale ? 'Cached' : 'Ready',
+                  icon: Icons.bolt_rounded,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton(
+                  onPressed: onOpenSessions,
+                  child: const Text('Open sessions'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton(
+                onPressed: controller.isLoading ? null : onRefresh,
+                child: const Icon(Icons.restart_alt_rounded),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color accent;
+  final bool isLoading;
+
+  const _MetricCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.accent,
+    required this.isLoading,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return GlassCard(
+      padding: const EdgeInsets.all(18),
+      enableBlur: false,
+      gradientColors: [
+        accent.withOpacity(0.18),
+        scheme.surface.withOpacity(0.36),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: accent.withOpacity(0.16),
+                ),
+                child: Icon(icon, color: accent),
+              ),
+              const Spacer(),
+              if (isLoading)
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: accent,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Align(
+              alignment: Alignment.bottomLeft,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeOutCubic,
+                child: FittedBox(
+                  key: ValueKey<String>(value),
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.bottomLeft,
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: accent,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const _MiniStat({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return GlassCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: scheme.primary.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: scheme.primary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurface.withOpacity(0.68),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(value, style: Theme.of(context).textTheme.titleMedium),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _StatusChip({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.24)),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+}
