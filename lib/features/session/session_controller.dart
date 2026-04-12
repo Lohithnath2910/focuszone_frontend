@@ -148,16 +148,38 @@ class SessionController extends ChangeNotifier {
     }
 
     final endedAt = DateTime.now();
+    final mergedSnapshot = {
+      ...Map<String, dynamic>.from(_snapshot),
+      if (snapshot != null) ...Map<String, dynamic>.from(snapshot),
+    };
+
+    final baseUrl = mergedSnapshot['baseUrl']?.toString() ?? '';
+    if (baseUrl.trim().isNotEmpty) {
+      await _api.sendFeedback(baseUrl, rating.clamp(1, 10));
+
+      final insight = await _api.fetchInsight(
+        baseUrl: baseUrl,
+        userScore: rating.clamp(1, 10),
+        snapshot: mergedSnapshot,
+      );
+
+      final insightText = insight?['guidance']?.toString().trim();
+      if (insightText != null && insightText.isNotEmpty) {
+        mergedSnapshot['insight'] = insightText;
+      }
+      if (insight?['predicted_score'] != null) {
+        mergedSnapshot['insightPredictedScore'] = insight?['predicted_score']
+            .toString();
+      }
+    }
+
     final record = SessionRecord(
       id: endedAt.microsecondsSinceEpoch.toString(),
       startedAt: _startedAt!,
       endedAt: endedAt,
       duration: endedAt.difference(_startedAt!),
       rating: rating.clamp(1, 10),
-      snapshot: {
-        ...Map<String, dynamic>.from(_snapshot),
-        if (snapshot != null) ...Map<String, dynamic>.from(snapshot),
-      },
+      snapshot: mergedSnapshot,
     );
 
     history.insert(0, record);
@@ -169,11 +191,6 @@ class SessionController extends ChangeNotifier {
     _snapshot = <String, dynamic>{};
     _ticker?.cancel();
     _ticker = null;
-
-    final baseUrl = record.snapshot['baseUrl']?.toString() ?? '';
-    if (baseUrl.trim().isNotEmpty) {
-      await _api.sendFeedback(baseUrl, record.rating);
-    }
 
     await StorageService.saveSessionHistory(
       history.map((item) => item.toJson()).toList(),

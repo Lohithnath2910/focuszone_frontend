@@ -30,8 +30,6 @@ class _FocusZoneAppState extends State<FocusZoneApp> {
   late final PageController pageController;
   late final ValueNotifier<int> indexNotifier;
 
-  bool _showSkeleton = true;
-
   @override
   void initState() {
     super.initState();
@@ -42,12 +40,6 @@ class _FocusZoneAppState extends State<FocusZoneApp> {
     sessionController = SessionController();
     pageController = PageController();
     indexNotifier = ValueNotifier<int>(0);
-    Future<void>.delayed(const Duration(milliseconds: 900), () {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _showSkeleton = false);
-    });
   }
 
   @override
@@ -89,41 +81,34 @@ class _FocusZoneAppState extends State<FocusZoneApp> {
             body: Stack(
               children: [
                 _AppBackdrop(themeValue: themeController.value),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 260),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeOutCubic,
-                  child: _showSkeleton
-                      ? const _LaunchSkeleton(key: ValueKey<String>('skeleton'))
-                      : RepaintBoundary(
-                          key: const ValueKey<String>('pages'),
-                          child: PageView(
-                            controller: pageController,
-                            onPageChanged: (value) {
-                              indexNotifier.value = value;
-                            },
-                            children: [
-                              RepaintBoundary(
-                                child: DashboardScreen(
-                                  controller: dashboardController,
-                                ),
-                              ),
-                              RepaintBoundary(
-                                child: SessionScreen(
-                                  controller: sessionController,
-                                  dashboardController: dashboardController,
-                                ),
-                              ),
-                              RepaintBoundary(
-                                child: SettingsScreen(
-                                  themeController: themeController,
-                                  dashboardController: dashboardController,
-                                  sessionController: sessionController,
-                                ),
-                              ),
-                            ],
-                          ),
+                RepaintBoundary(
+                  key: const ValueKey<String>('pages'),
+                  child: PageView(
+                    controller: pageController,
+                    onPageChanged: (value) {
+                      indexNotifier.value = value;
+                    },
+                    children: [
+                      RepaintBoundary(
+                        child: DashboardScreen(
+                          controller: dashboardController,
                         ),
+                      ),
+                      RepaintBoundary(
+                        child: SessionScreen(
+                          controller: sessionController,
+                          dashboardController: dashboardController,
+                        ),
+                      ),
+                      RepaintBoundary(
+                        child: SettingsScreen(
+                          themeController: themeController,
+                          dashboardController: dashboardController,
+                          sessionController: sessionController,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -213,70 +198,6 @@ class _GlowOrb extends StatelessWidget {
         shape: BoxShape.circle,
         gradient: RadialGradient(
           colors: [color.withOpacity(0.42), color.withOpacity(0.02)],
-        ),
-      ),
-    );
-  }
-}
-
-class _LaunchSkeleton extends StatelessWidget {
-  const _LaunchSkeleton({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 180,
-              height: 34,
-              decoration: BoxDecoration(
-                color: scheme.onSurface.withOpacity(0.13),
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: 260,
-              height: 14,
-              decoration: BoxDecoration(
-                color: scheme.onSurface.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            const SizedBox(height: 22),
-            Container(
-              width: double.infinity,
-              height: 120,
-              decoration: BoxDecoration(
-                color: scheme.onSurface.withOpacity(0.09),
-                borderRadius: BorderRadius.circular(24),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: GridView.count(
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1,
-                children: List.generate(4, (_) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: scheme.onSurface.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                  );
-                }),
-              ),
-            ),
-          ],
         ),
       ),
     );

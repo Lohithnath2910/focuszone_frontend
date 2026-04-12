@@ -28,15 +28,14 @@ class SessionDetailScreen extends StatelessWidget {
     final temperatureSeries = _seriesFromSnapshot(ordered, 'temperature');
     final humiditySeries = _seriesFromSnapshot(ordered, 'humidity');
     final lightSeries = _seriesFromSnapshot(ordered, 'light');
+    final noiseSeries = _seriesFromSnapshot(ordered, 'noise');
     final ratingSeries = ordered
         .map((record) => record.rating.clamp(1, 5).toDouble())
         .toList();
-    final durationSeries = ordered
-        .map((record) {
-          final minutes = record.duration.inMinutes;
-          return (minutes <= 0 ? 1 : minutes).toDouble();
-        })
-        .toList();
+    final durationSeries = ordered.map((record) {
+      final minutes = record.duration.inMinutes;
+      return (minutes <= 0 ? 1 : minutes).toDouble();
+    }).toList();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Session analytics')),
@@ -82,24 +81,63 @@ class SessionDetailScreen extends StatelessWidget {
                         ),
                         _MetricPill(
                           label: 'Temp',
-                          value: selectedRecord.snapshot['temperature']
+                          value:
+                              selectedRecord.snapshot['temperature']
                                   ?.toString() ??
                               '--',
                         ),
                         _MetricPill(
                           label: 'Humidity',
-                          value: selectedRecord.snapshot['humidity']
-                                  ?.toString() ??
+                          value:
+                              selectedRecord.snapshot['humidity']?.toString() ??
                               '--',
                         ),
                         _MetricPill(
                           label: 'Light',
                           value:
                               selectedRecord.snapshot['light']?.toString() ??
-                                  '--',
+                              '--',
+                        ),
+                        _MetricPill(
+                          label: 'Noise',
+                          value:
+                              selectedRecord.snapshot['noise']?.toString() ??
+                              '--',
                         ),
                       ],
                     ),
+                    if ((selectedRecord.snapshot['insight']
+                            ?.toString()
+                            .trim()
+                            .isNotEmpty ??
+                        false)) ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: scheme.surface.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: scheme.onSurface.withOpacity(0.08),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Stored insight',
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              selectedRecord.snapshot['insight'].toString(),
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -129,6 +167,16 @@ class SessionDetailScreen extends StatelessWidget {
                 yLabel: 'lux',
                 lineColor: scheme.secondary,
                 values: lightSeries,
+                selectedIndex: selectedIndex,
+                minY: null,
+                maxY: null,
+              ),
+              const SizedBox(height: 12),
+              _AxisTrendCard(
+                title: 'Noise across sessions',
+                yLabel: 'dB',
+                lineColor: scheme.error,
+                values: noiseSeries,
                 selectedIndex: selectedIndex,
                 minY: null,
                 maxY: null,
@@ -470,10 +518,8 @@ class _AxisLineChartPainter extends CustomPainter {
         fontWeight: FontWeight.w600,
       ),
     );
-    final painter = TextPainter(
-      text: span,
-      textDirection: TextDirection.ltr,
-    )..layout();
+    final painter = TextPainter(text: span, textDirection: TextDirection.ltr)
+      ..layout();
 
     final drawOffset = alignRight
         ? Offset(offset.dx - painter.width, offset.dy)

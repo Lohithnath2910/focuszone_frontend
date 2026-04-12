@@ -13,6 +13,7 @@ class DashboardController extends ChangeNotifier {
   String temperature = "--";
   String humidity = "--";
   String light = "--";
+  String noise = "--";
   String time = "--";
 
   bool isConnected = false;
@@ -25,6 +26,7 @@ class DashboardController extends ChangeNotifier {
   final List<double> temperatureHistory = <double>[];
   final List<double> humidityHistory = <double>[];
   final List<double> lightHistory = <double>[];
+  final List<double> noiseHistory = <double>[];
 
   Timer? _timer;
   String baseUrl = "";
@@ -161,15 +163,18 @@ class DashboardController extends ChangeNotifier {
     temperature = _formatValue(data['temperature'], suffix: '°C');
     humidity = _formatValue(data['humidity'], suffix: '%');
     light = _formatValue(data['light'], suffix: ' lux');
+    noise = _formatValue(data['noise'], suffix: ' dB');
     time = data['timestamp']?.toString() ?? '--';
     lastUpdated = DateTime.tryParse(time);
 
     final tempValue = _toDouble(data['temperature']);
     final humidityValue = _toDouble(data['humidity']);
     final lightValue = _toDouble(data['light']);
+    final noiseValue = _toDouble(data['noise']);
     _appendHistory(temperatureHistory, tempValue);
     _appendHistory(humidityHistory, humidityValue);
     _appendHistory(lightHistory, lightValue);
+    _appendHistory(noiseHistory, noiseValue);
 
     if (!fromCache) {
       statusMessage = 'Fresh sample received';
@@ -212,6 +217,7 @@ class DashboardController extends ChangeNotifier {
       'temperature': temperature,
       'humidity': humidity,
       'light': light,
+      'noise': noise,
       'timestamp': time,
       'lastUpdated': lastUpdated?.toIso8601String(),
       'isConnected': isConnected,
@@ -222,6 +228,7 @@ class DashboardController extends ChangeNotifier {
       'temperatureHistory': List<double>.from(temperatureHistory),
       'humidityHistory': List<double>.from(humidityHistory),
       'lightHistory': List<double>.from(lightHistory),
+      'noiseHistory': List<double>.from(noiseHistory),
     };
   }
 
@@ -235,6 +242,7 @@ class DashboardController extends ChangeNotifier {
     temperature = "--";
     humidity = "--";
     light = "--";
+    noise = "--";
     time = "--";
     isConnected = false;
     isStale = false;
@@ -247,6 +255,7 @@ class DashboardController extends ChangeNotifier {
     temperatureHistory.clear();
     humidityHistory.clear();
     lightHistory.clear();
+    noiseHistory.clear();
     notifyListeners();
   }
 

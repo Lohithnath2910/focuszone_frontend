@@ -8,10 +8,7 @@ import 'dashboard_controller.dart';
 class DashboardScreen extends StatefulWidget {
   final DashboardController controller;
 
-  const DashboardScreen({
-    super.key,
-    required this.controller,
-  });
+  const DashboardScreen({super.key, required this.controller});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -64,8 +61,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       animation: controller,
       builder: (context, child) {
         final scheme = Theme.of(context).colorScheme;
-        final isLoading =
-            controller.isLoading && controller.temperature == '--';
 
         return SafeArea(
           child: RefreshIndicator(
@@ -201,28 +196,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             value: controller.temperature,
                             icon: Icons.thermostat_rounded,
                             accent: scheme.primary,
-                            isLoading: isLoading,
                           ),
                           _MetricCard(
                             title: 'Humidity',
                             value: controller.humidity,
                             icon: Icons.water_drop_rounded,
                             accent: scheme.tertiary,
-                            isLoading: isLoading,
                           ),
                           _MetricCard(
                             title: 'Light',
                             value: controller.light,
                             icon: Icons.wb_sunny_rounded,
                             accent: scheme.secondary,
-                            isLoading: isLoading,
+                          ),
+                          _MetricCard(
+                            title: 'Noise',
+                            value: controller.noise,
+                            icon: Icons.graphic_eq_rounded,
+                            accent: scheme.error,
                           ),
                           _MetricCard(
                             title: 'Timestamp',
                             value: controller.time,
                             icon: Icons.schedule_rounded,
                             accent: scheme.onSurface,
-                            isLoading: isLoading,
                           ),
                         ],
                       );
@@ -256,6 +253,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     subtitle: 'Recent readings',
                     color: scheme.secondary,
                     data: controller.lightHistory,
+                  ),
+                  const SizedBox(height: 12),
+                  SparklineCard(
+                    title: 'Noise',
+                    value: controller.noise,
+                    subtitle: 'Recent readings',
+                    color: scheme.error,
+                    data: controller.noiseHistory,
                   ),
                   const SizedBox(height: Spacing.lg),
                   GlassCard(
@@ -311,14 +316,12 @@ class _MetricCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color accent;
-  final bool isLoading;
 
   const _MetricCard({
     required this.title,
     required this.value,
     required this.icon,
     required this.accent,
-    required this.isLoading,
   });
 
   @override
@@ -348,15 +351,6 @@ class _MetricCard extends StatelessWidget {
                 child: Icon(icon, color: accent),
               ),
               const Spacer(),
-              if (isLoading)
-                SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: accent,
-                  ),
-                ),
             ],
           ),
           const SizedBox(height: 20),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/constants/spacing.dart';
@@ -6,7 +8,7 @@ import '../dashboard/dashboard_controller.dart';
 import 'session_controller.dart';
 import 'session_detail_screen.dart';
 
-class SessionScreen extends StatelessWidget {
+class SessionScreen extends StatefulWidget {
   final SessionController controller;
   final DashboardController dashboardController;
 
@@ -15,6 +17,16 @@ class SessionScreen extends StatelessWidget {
     required this.controller,
     required this.dashboardController,
   });
+
+  @override
+  State<SessionScreen> createState() => _SessionScreenState();
+}
+
+class _SessionScreenState extends State<SessionScreen> {
+  Timer? _insightAutoDismissTimer;
+
+  SessionController get controller => widget.controller;
+  DashboardController get dashboardController => widget.dashboardController;
 
   Future<int?> _askForRating(BuildContext context) async {
     var selected = 7.0;
@@ -123,10 +135,45 @@ class SessionScreen extends StatelessWidget {
       return;
     }
 
-    await controller.stopSession(
+    final record = await controller.stopSession(
       rating: rating,
       snapshot: dashboardController.snapshot,
     );
+
+    final insightText = record?.snapshot['insight']?.toString().trim();
+    if (insightText != null && insightText.isNotEmpty) {
+      _showInsight(insightText);
+    }
+  }
+
+  void _showInsight(String message) {
+    _insightAutoDismissTimer?.cancel();
+    if (!mounted) {
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return Center(
+          child: SingleChildScrollView(
+            child: _InsightMessageCard(
+              message: message,
+              onClose: () => Navigator.of(dialogContext).pop(),
+            ),
+          ),
+        );
+      },
+    ).then((_) {
+      _insightAutoDismissTimer?.cancel();
+    });
+
+    _insightAutoDismissTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+    });
   }
 
   Future<void> _openSessionDetails(
@@ -375,6 +422,10 @@ class SessionScreen extends StatelessWidget {
                               value: dashboardController.light,
                             ),
                             _SnapshotChip(
+                              label: 'Noise',
+                              value: dashboardController.noise,
+                            ),
+                            _SnapshotChip(
                               label: 'Source',
                               value: dashboardController.isConnected
                                   ? 'Live'
@@ -427,7 +478,8 @@ class SessionScreen extends StatelessWidget {
                               color: Colors.transparent,
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(20),
-                                onTap: () => _openSessionDetails(context, record),
+                                onTap: () =>
+                                    _openSessionDetails(context, record),
                                 child: Container(
                                   padding: const EdgeInsets.all(14),
                                   decoration: BoxDecoration(
@@ -438,7 +490,8 @@ class SessionScreen extends StatelessWidget {
                                     ),
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Row(
                                         children: [
@@ -455,7 +508,9 @@ class SessionScreen extends StatelessWidget {
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .titleSmall
-                                                ?.copyWith(color: scheme.primary),
+                                                ?.copyWith(
+                                                  color: scheme.primary,
+                                                ),
                                           ),
                                         ],
                                       ),
@@ -469,13 +524,33 @@ class SessionScreen extends StatelessWidget {
                                       const SizedBox(height: 8),
                                       Text(
                                         'Snapshot: ${_snapshotSummary(record.snapshot)}',
-                                        style: Theme.of(context).textTheme.bodySmall
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
                                             ?.copyWith(
-                                              color: scheme.onSurface.withOpacity(
-                                                0.62,
-                                              ),
+                                              color: scheme.onSurface
+                                                  .withOpacity(0.62),
                                             ),
                                       ),
+                                      if ((record.snapshot['insight']
+                                              ?.toString()
+                                              .trim()
+                                              .isNotEmpty ??
+                                          false)) ...[
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Insight: ${record.snapshot['insight']}',
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: scheme.primary,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),
@@ -518,8 +593,17 @@ class SessionScreen extends StatelessWidget {
     if (snapshot['light'] != null) {
       values.add('L ${snapshot['light']}');
     }
+    if (snapshot['noise'] != null) {
+      values.add('N ${snapshot['noise']}');
+    }
 
     return values.isEmpty ? 'Captured' : values.join(' · ');
+  }
+
+  @override
+  void dispose() {
+    _insightAutoDismissTimer?.cancel();
+    super.dispose();
   }
 }
 
@@ -548,6 +632,96 @@ class _SessionBadge extends StatelessWidget {
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
           color: color,
           fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _InsightMessageCard extends StatelessWidget {
+  final String message;
+  final VoidCallback onClose;
+
+  const _InsightMessageCard({required this.message, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 360),
+      margin: const EdgeInsets.all(24),
+      child: GlassCard(
+        enableBlur: true,
+        gradientColors: [
+          scheme.primary.withOpacity(0.12),
+          scheme.tertiary.withOpacity(0.08),
+        ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.tips_and_updates_rounded,
+                    color: scheme.primary,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'AI Insight',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.close_rounded,
+                    color: scheme.onSurface.withOpacity(0.6),
+                  ),
+                  tooltip: 'Dismiss',
+                  onPressed: onClose,
+                  iconSize: 22,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: scheme.surface.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: scheme.primary.withOpacity(0.08),
+                ),
+              ),
+              child: Text(
+                message,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurface.withOpacity(0.88),
+                  height: 1.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: onClose,
+                child: const Text('Got it'),
+              ),
+            ),
+          ],
         ),
       ),
     );
