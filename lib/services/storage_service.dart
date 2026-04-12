@@ -8,6 +8,7 @@ class StorageService {
   static const String _activeSessionKey = 'focus_zone_active_session';
   static const String _themeValueKey = 'focus_zone_theme_value';
   static const String _baseUrlKey = 'focus_zone_base_url';
+  static const String _savedBaseUrlsKey = 'focus_zone_saved_base_urls';
 
   static SharedPreferences? _prefs;
 
@@ -106,14 +107,28 @@ class StorageService {
     }
 
     await _storage.setString(_baseUrlKey, trimmed);
+
+    final saved = getSavedBaseUrls();
+    final deduped = <String>[trimmed, ...saved.where((url) => url != trimmed)]
+        .take(8)
+        .toList();
+    await _storage.setStringList(_savedBaseUrlsKey, deduped);
   }
 
   static String getBaseUrl() {
     return _storage.getString(_baseUrlKey) ?? '';
   }
 
+  static List<String> getSavedBaseUrls() {
+    return List<String>.from(_storage.getStringList(_savedBaseUrlsKey) ?? const <String>[]);
+  }
+
   static Future<void> clearBaseUrl() async {
     await _storage.remove(_baseUrlKey);
+  }
+
+  static Future<void> clearSavedBaseUrls() async {
+    await _storage.remove(_savedBaseUrlsKey);
   }
 
   static Future<void> clearLatestData() async {
@@ -130,5 +145,6 @@ class StorageService {
     await _storage.remove(_sessionHistoryKey);
     await _storage.remove(_activeSessionKey);
     await _storage.remove(_baseUrlKey);
+    await _storage.remove(_savedBaseUrlsKey);
   }
 }

@@ -8,6 +8,7 @@ import '../../services/storage_service.dart';
 class DashboardController extends ChangeNotifier {
   final ApiService _api = ApiService();
   static const int _maxHistoryPoints = 24;
+  final List<String> _savedBaseUrls = <String>[];
 
   String temperature = "--";
   String humidity = "--";
@@ -18,6 +19,8 @@ class DashboardController extends ChangeNotifier {
   bool isLoading = false;
   bool isStale = false;
   String? statusMessage;
+  String? guidanceMessage;
+  double? predictedScore;
   DateTime? lastUpdated;
   final List<double> temperatureHistory = <double>[];
   final List<double> humidityHistory = <double>[];
@@ -25,9 +28,13 @@ class DashboardController extends ChangeNotifier {
 
   Timer? _timer;
   String baseUrl = "";
+  List<String> get savedBaseUrls => List<String>.unmodifiable(_savedBaseUrls);
 
   DashboardController() {
     baseUrl = StorageService.getBaseUrl();
+    _savedBaseUrls
+      ..clear()
+      ..addAll(StorageService.getSavedBaseUrls());
     final cached = StorageService.getLatestData();
     if (cached != null) {
       update(cached, fromCache: true);
@@ -45,10 +52,17 @@ class DashboardController extends ChangeNotifier {
   void connect(String url) {
     baseUrl = formatUrl(url);
     if (baseUrl.isNotEmpty) {
-      StorageService.saveBaseUrl(baseUrl);
+      unawaited(StorageService.saveBaseUrl(baseUrl));
+      _savedBaseUrls
+        ..removeWhere((item) => item == baseUrl)
+        ..insert(0, baseUrl);
+      if (_savedBaseUrls.length > 8) {
+        _savedBaseUrls.removeRange(8, _savedBaseUrls.length);
+      }
     }
     fetch();
     startPolling();
+    notifyListeners();
   }
 
   String formatUrl(String url) {
@@ -98,7 +112,18 @@ class DashboardController extends ChangeNotifier {
     statusMessage = 'Syncing with backend';
     notifyListeners();
 
-    final data = await _api.fetchLatestData(baseUrl);
+    final userScore = _currentUserScore();
+    final responses = await Future.wait<Object?>([
+      _api.fetchLatestData(baseUrl),
+      _api.sync(baseUrl, userScore),
+    ]);
+    final data = responses[0] as Map<String, dynamic>?;
+    final syncData = responses[1] as Map<String, dynamic>?;
+
+    if (syncData != null) {
+      predictedScore = _toDouble(syncData['predicted_score']);
+      guidanceMessage = syncData['guidance']?.toString();
+    }
 
     if (data != null) {
       update(data);
@@ -120,6 +145,16 @@ class DashboardController extends ChangeNotifier {
 
     isLoading = false;
     notifyListeners();
+  }
+
+  int _currentUserScore() {
+    final history = StorageService.getSessionHistory();
+    if (history.isEmpty) {
+      return 6;
+    }
+
+    final latestRating = (history.first['rating'] as num?)?.toInt() ?? 3;
+    return latestRating.clamp(1, 10);
   }
 
   void update(Map<String, dynamic> data, {bool fromCache = false}) {
@@ -182,12 +217,18 @@ class DashboardController extends ChangeNotifier {
       'isConnected': isConnected,
       'isStale': isStale,
       'baseUrl': baseUrl,
+      'guidance': guidanceMessage,
+      'predictedScore': predictedScore,
+      'temperatureHistory': List<double>.from(temperatureHistory),
+      'humidityHistory': List<double>.from(humidityHistory),
+      'lightHistory': List<double>.from(lightHistory),
     };
   }
 
   void clear() {
     StorageService.clearLatestData();
     StorageService.clearBaseUrl();
+    StorageService.clearSavedBaseUrls();
     _timer?.cancel();
     _timer = null;
     baseUrl = "";
@@ -199,7 +240,10 @@ class DashboardController extends ChangeNotifier {
     isStale = false;
     isLoading = false;
     statusMessage = 'Local cache cleared';
+    guidanceMessage = null;
+    predictedScore = null;
     lastUpdated = null;
+    _savedBaseUrls.clear();
     temperatureHistory.clear();
     humidityHistory.clear();
     lightHistory.clear();

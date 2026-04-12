@@ -7,12 +7,10 @@ import 'dashboard_controller.dart';
 
 class DashboardScreen extends StatefulWidget {
   final DashboardController controller;
-  final VoidCallback onOpenSessions;
 
   const DashboardScreen({
     super.key,
     required this.controller,
-    required this.onOpenSessions,
   });
 
   @override
@@ -64,7 +62,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: controller,
-      builder: (_, __) {
+      builder: (context, child) {
         final scheme = Theme.of(context).colorScheme;
         final isLoading =
             controller.isLoading && controller.temperature == '--';
@@ -75,14 +73,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onRefresh: _refresh,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 122),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 92),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _HeaderCard(
-                    controller: controller,
-                    onOpenSessions: widget.onOpenSessions,
-                    onRefresh: _refresh,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Focus Zone',
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+                      ),
+                      _StatusChip(
+                        color: controller.isConnected
+                            ? Colors.greenAccent
+                            : controller.isStale
+                            ? Colors.orangeAccent
+                            : scheme.onSurface.withOpacity(0.75),
+                        label: controller.isConnected
+                            ? 'LIVE'
+                            : controller.isStale
+                            ? 'STALE'
+                            : 'IDLE',
+                      ),
+                    ],
                   ),
                   const SizedBox(height: Spacing.lg),
                   GlassCard(
@@ -103,8 +118,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           controller: urlController,
                           textInputAction: TextInputAction.done,
                           onSubmitted: (_) => _connect(),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             hintText: 'ESP32 IP or backend URL',
+                            suffixIcon: controller.savedBaseUrls.isEmpty
+                                ? null
+                                : PopupMenuButton<String>(
+                                    tooltip: 'Choose saved URL',
+                                    icon: const Icon(Icons.history_rounded),
+                                    onSelected: (selected) {
+                                      setState(() {
+                                        urlController.text = selected;
+                                      });
+                                      controller.connect(selected);
+                                    },
+                                    itemBuilder: (context) {
+                                      return controller.savedBaseUrls
+                                          .map(
+                                            (savedUrl) => PopupMenuItem<String>(
+                                              value: savedUrl,
+                                              child: Text(
+                                                savedUrl,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          )
+                                          .toList();
+                                    },
+                                  ),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -138,52 +179,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
                         ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: Spacing.lg),
-                  Text(
-                    'Live trends',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 190,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        SizedBox(
-                          width: 220,
-                          child: SparklineCard(
-                            title: 'Temperature',
-                            value: controller.temperature,
-                            subtitle: 'Recent readings',
-                            color: scheme.primary,
-                            data: controller.temperatureHistory,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 220,
-                          child: SparklineCard(
-                            title: 'Humidity',
-                            value: controller.humidity,
-                            subtitle: 'Recent readings',
-                            color: scheme.tertiary,
-                            data: controller.humidityHistory,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 220,
-                          child: SparklineCard(
-                            title: 'Light',
-                            value: controller.light,
-                            subtitle: 'Recent readings',
-                            color: scheme.secondary,
-                            data: controller.lightHistory,
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -234,6 +229,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     },
                   ),
                   const SizedBox(height: Spacing.lg),
+                  Text(
+                    'Live trends',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 10),
+                  SparklineCard(
+                    title: 'Temperature',
+                    value: controller.temperature,
+                    subtitle: 'Recent readings',
+                    color: scheme.primary,
+                    data: controller.temperatureHistory,
+                  ),
+                  const SizedBox(height: 12),
+                  SparklineCard(
+                    title: 'Humidity',
+                    value: controller.humidity,
+                    subtitle: 'Recent readings',
+                    color: scheme.tertiary,
+                    data: controller.humidityHistory,
+                  ),
+                  const SizedBox(height: 12),
+                  SparklineCard(
+                    title: 'Light',
+                    value: controller.light,
+                    subtitle: 'Recent readings',
+                    color: scheme.secondary,
+                    data: controller.lightHistory,
+                  ),
+                  const SizedBox(height: Spacing.lg),
                   GlassCard(
                     child: Row(
                       children: [
@@ -278,108 +302,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         );
       },
-    );
-  }
-}
-
-class _HeaderCard extends StatelessWidget {
-  final DashboardController controller;
-  final VoidCallback onOpenSessions;
-  final Future<void> Function() onRefresh;
-
-  const _HeaderCard({
-    required this.controller,
-    required this.onOpenSessions,
-    required this.onRefresh,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final statusColor = controller.isConnected
-        ? Colors.greenAccent
-        : controller.isStale
-        ? Colors.orangeAccent
-        : scheme.onSurface.withOpacity(0.75);
-
-    return GlassCard(
-      gradientColors: [
-        scheme.primary.withOpacity(0.22),
-        scheme.tertiary.withOpacity(0.12),
-      ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Focus Zone',
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'A calm control surface for live environmental readings and focus sessions.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: scheme.onSurface.withOpacity(0.72),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              _StatusChip(
-                color: statusColor,
-                label: controller.isConnected
-                    ? 'LIVE'
-                    : controller.isStale
-                    ? 'STALE'
-                    : 'IDLE',
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: _MiniStat(
-                  label: 'Polling',
-                  value: controller.isLoading ? 'Syncing' : '20s',
-                  icon: Icons.refresh_rounded,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _MiniStat(
-                  label: 'Session',
-                  value: controller.isStale ? 'Cached' : 'Ready',
-                  icon: Icons.bolt_rounded,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton(
-                  onPressed: onOpenSessions,
-                  child: const Text('Open sessions'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton(
-                onPressed: controller.isLoading ? null : onRefresh,
-                child: const Icon(Icons.restart_alt_rounded),
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 }
@@ -462,56 +384,6 @@ class _MetricCard extends StatelessWidget {
                   ),
                 ),
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniStat extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-
-  const _MiniStat({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return GlassCard(
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: scheme.primary.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(icon, color: scheme.primary, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurface.withOpacity(0.68),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(value, style: Theme.of(context).textTheme.titleMedium),
-              ],
             ),
           ),
         ],

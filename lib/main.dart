@@ -106,7 +106,6 @@ class _FocusZoneAppState extends State<FocusZoneApp> {
                               RepaintBoundary(
                                 child: DashboardScreen(
                                   controller: dashboardController,
-                                  onOpenSessions: () => _handleNavTap(1),
                                 ),
                               ),
                               RepaintBoundary(

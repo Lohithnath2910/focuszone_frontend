@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
 
 class SessionRecord {
@@ -76,6 +77,7 @@ class SessionController extends ChangeNotifier {
     _restoreState();
   }
 
+  final ApiService _api = ApiService();
   final List<SessionRecord> history = <SessionRecord>[];
   Timer? _ticker;
   DateTime? _startedAt;
@@ -137,7 +139,10 @@ class SessionController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<SessionRecord?> stopSession({required int rating}) async {
+  Future<SessionRecord?> stopSession({
+    required int rating,
+    Map<String, dynamic>? snapshot,
+  }) async {
     if (!isActive || _startedAt == null) {
       return null;
     }
@@ -148,8 +153,11 @@ class SessionController extends ChangeNotifier {
       startedAt: _startedAt!,
       endedAt: endedAt,
       duration: endedAt.difference(_startedAt!),
-      rating: rating.clamp(1, 5),
-      snapshot: Map<String, dynamic>.from(_snapshot),
+      rating: rating.clamp(1, 10),
+      snapshot: {
+        ...Map<String, dynamic>.from(_snapshot),
+        if (snapshot != null) ...Map<String, dynamic>.from(snapshot),
+      },
     );
 
     history.insert(0, record);
@@ -161,6 +169,11 @@ class SessionController extends ChangeNotifier {
     _snapshot = <String, dynamic>{};
     _ticker?.cancel();
     _ticker = null;
+
+    final baseUrl = record.snapshot['baseUrl']?.toString() ?? '';
+    if (baseUrl.trim().isNotEmpty) {
+      await _api.sendFeedback(baseUrl, record.rating);
+    }
 
     await StorageService.saveSessionHistory(
       history.map((item) => item.toJson()).toList(),

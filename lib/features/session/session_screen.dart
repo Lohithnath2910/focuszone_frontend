@@ -4,6 +4,7 @@ import '../../core/constants/spacing.dart';
 import '../../shared/widgets/glass_card.dart';
 import '../dashboard/dashboard_controller.dart';
 import 'session_controller.dart';
+import 'session_detail_screen.dart';
 
 class SessionScreen extends StatelessWidget {
   final SessionController controller;
@@ -16,7 +17,7 @@ class SessionScreen extends StatelessWidget {
   });
 
   Future<int?> _askForRating(BuildContext context) async {
-    var selected = 4;
+    var selected = 7.0;
 
     return showModalBottomSheet<int>(
       context: context,
@@ -24,7 +25,6 @@ class SessionScreen extends StatelessWidget {
       isScrollControlled: true,
       builder: (sheetContext) {
         final scheme = Theme.of(sheetContext).colorScheme;
-        final labels = ['Crash', 'Rough', 'Okay', 'Great', 'Locked in'];
 
         return StatefulBuilder(
           builder: (context, setState) {
@@ -46,76 +46,40 @@ class SessionScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'How productive did this run feel?',
+                    'Set your focus score from 1 to 10.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: List.generate(5, (index) {
-                      final value = index + 1;
-                      final active = selected == value;
-
-                      return Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 3),
-                          child: GestureDetector(
-                            onTap: () => setState(() => selected = value),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 220),
-                              curve: Curves.easeOutCubic,
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(14),
-                                color: active
-                                    ? scheme.primary.withOpacity(0.2)
-                                    : scheme.surface.withOpacity(0.4),
-                                border: Border.all(
-                                  color: active
-                                      ? scheme.primary
-                                      : scheme.onSurface.withOpacity(0.1),
-                                ),
-                              ),
-                              child: Column(
-                                children: [
-                                  AnimatedScale(
-                                    scale: active ? 1.15 : 1,
-                                    duration: const Duration(milliseconds: 200),
-                                    child: Icon(
-                                      Icons.auto_awesome_rounded,
-                                      size: 18,
-                                      color: active
-                                          ? scheme.primary
-                                          : scheme.onSurface.withOpacity(0.5),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    '$value',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleSmall
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w800,
-                                          color: active
-                                              ? scheme.primary
-                                              : scheme.onSurface,
-                                        ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
+                  const SizedBox(height: 14),
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: scheme.primary,
+                      thumbColor: scheme.primary,
+                      inactiveTrackColor: scheme.primary.withOpacity(0.18),
+                      valueIndicatorColor: scheme.primary,
+                    ),
+                    child: Slider(
+                      value: selected,
+                      min: 1,
+                      max: 10,
+                      divisions: 9,
+                      label: '${selected.round()}',
+                      onChanged: (value) => setState(() => selected = value),
+                    ),
                   ),
-                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('1', style: Theme.of(context).textTheme.bodySmall),
+                      Text('10', style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
                   Center(
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 180),
                       child: Text(
-                        labels[selected - 1],
-                        key: ValueKey<int>(selected),
+                        'Focus score: ${selected.round()}/10',
+                        key: ValueKey<int>(selected.round()),
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(color: scheme.primary),
                       ),
@@ -134,7 +98,7 @@ class SessionScreen extends StatelessWidget {
                       Expanded(
                         child: FilledButton(
                           onPressed: () =>
-                              Navigator.of(sheetContext).pop(selected),
+                              Navigator.of(sheetContext).pop(selected.round()),
                           child: const Text('Save rating'),
                         ),
                       ),
@@ -159,7 +123,24 @@ class SessionScreen extends StatelessWidget {
       return;
     }
 
-    await controller.stopSession(rating: rating);
+    await controller.stopSession(
+      rating: rating,
+      snapshot: dashboardController.snapshot,
+    );
+  }
+
+  Future<void> _openSessionDetails(
+    BuildContext context,
+    SessionRecord selected,
+  ) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SessionDetailScreen(
+          selectedRecord: selected,
+          history: controller.history,
+        ),
+      ),
+    );
   }
 
   Future<void> _confirmReset(BuildContext context) async {
@@ -204,14 +185,13 @@ class SessionScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: controller,
-      builder: (_, __) {
+      builder: (context, child) {
         final scheme = Theme.of(context).colorScheme;
-        final latest = controller.lastCompletedSession;
 
         return SafeArea(
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 122),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 92),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -336,7 +316,7 @@ class SessionScreen extends StatelessWidget {
                       const SizedBox(height: 12),
                       _TrendBlock(
                         title: 'Productivity trend',
-                        subtitle: 'Last ratings (1-5)',
+                        subtitle: 'Last ratings (1-10)',
                         color: scheme.primary,
                         values: controller.history
                             .take(8)
@@ -344,7 +324,7 @@ class SessionScreen extends StatelessWidget {
                             .reversed
                             .map((record) => record.rating.toDouble())
                             .toList(),
-                        maxY: 5,
+                        maxY: 10,
                       ),
                       const SizedBox(height: 14),
                       _TrendBlock(
@@ -366,41 +346,44 @@ class SessionScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: Spacing.lg),
-                GlassCard(
-                  enableBlur: false,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Live snapshot',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          _SnapshotChip(
-                            label: 'Temp',
-                            value: dashboardController.temperature,
-                          ),
-                          _SnapshotChip(
-                            label: 'Humidity',
-                            value: dashboardController.humidity,
-                          ),
-                          _SnapshotChip(
-                            label: 'Light',
-                            value: dashboardController.light,
-                          ),
-                          _SnapshotChip(
-                            label: 'Source',
-                            value: dashboardController.isConnected
-                                ? 'Live'
-                                : 'Cached',
-                          ),
-                        ],
-                      ),
-                    ],
+                SizedBox(
+                  width: double.infinity,
+                  child: GlassCard(
+                    enableBlur: false,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Live snapshot',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            _SnapshotChip(
+                              label: 'Temp',
+                              value: dashboardController.temperature,
+                            ),
+                            _SnapshotChip(
+                              label: 'Humidity',
+                              value: dashboardController.humidity,
+                            ),
+                            _SnapshotChip(
+                              label: 'Light',
+                              value: dashboardController.light,
+                            ),
+                            _SnapshotChip(
+                              label: 'Source',
+                              value: dashboardController.isConnected
+                                  ? 'Live'
+                                  : 'Cached',
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: Spacing.lg),
@@ -436,59 +419,66 @@ class SessionScreen extends StatelessWidget {
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: controller.history.length,
-                          separatorBuilder: (_, __) =>
+                          separatorBuilder: (context, index) =>
                               const SizedBox(height: 12),
                           itemBuilder: (context, index) {
                             final record = controller.history[index];
-                            return Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: scheme.surface.withOpacity(0.42),
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: scheme.onSurface.withOpacity(0.08),
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
+                                onTap: () => _openSessionDetails(context, record),
+                                child: Container(
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: scheme.surface.withOpacity(0.42),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: scheme.onSurface.withOpacity(0.08),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Expanded(
-                                        child: Text(
-                                          _formatDate(record.startedAt),
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.titleSmall,
-                                        ),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              _formatDate(record.startedAt),
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.titleSmall,
+                                            ),
+                                          ),
+                                          Text(
+                                            record.durationLabel,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleSmall
+                                                ?.copyWith(color: scheme.primary),
+                                          ),
+                                        ],
                                       ),
+                                      const SizedBox(height: 8),
                                       Text(
-                                        record.durationLabel,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleSmall
-                                            ?.copyWith(color: scheme.primary),
+                                        'Productivity rating: ${record.rating}/10',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Snapshot: ${_snapshotSummary(record.snapshot)}',
+                                        style: Theme.of(context).textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: scheme.onSurface.withOpacity(
+                                                0.62,
+                                              ),
+                                            ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Productivity rating: ${record.rating}/5',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Snapshot: ${_snapshotSummary(record.snapshot)}',
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(
-                                          color: scheme.onSurface.withOpacity(
-                                            0.62,
-                                          ),
-                                        ),
-                                  ),
-                                ],
+                                ),
                               ),
                             );
                           },
@@ -496,29 +486,6 @@ class SessionScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (latest != null) ...[
-                  const SizedBox(height: Spacing.lg),
-                  GlassCard(
-                    enableBlur: false,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Last completed session',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${latest.durationLabel} on ${_formatDate(latest.startedAt)}',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: scheme.onSurface.withOpacity(0.68),
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
